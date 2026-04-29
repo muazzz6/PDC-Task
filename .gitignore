@@ -1,0 +1,27 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local runtime/output folders
+sample_files/
+downloads/
+api_downloads/
+
+# Generated reports
+performance_report_*.json
+performance_summary_*.csv
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Environment files
+.env
