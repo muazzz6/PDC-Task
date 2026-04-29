@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from cloud_config import ACTIVE_CONFIG
 import boto3
+from demo_storage import DEMO_FILES, list_demo_files, get_demo_file_record, build_demo_file_bytes
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +38,7 @@ def init_cloud_client():
 
 client, provider = init_cloud_client()
 BUCKET = ACTIVE_CONFIG.get('bucket_name')
+DEMO_FALLBACK_ENABLED = os.getenv('ENABLE_DEMO_FALLBACK', 'true').lower() == 'true'
 
 
 # ============================================
@@ -103,6 +105,17 @@ def list_files():
                 }
                 for item in response
             ]
+
+            if not files and DEMO_FALLBACK_ENABLED:
+                files = list_demo_files()
+                source = 'demo'
+            else:
+                source = 'supabase'
+        else:
+            source = 'unknown'
+
+        if provider != 'supabase':
+            source = provider
         
         elapsed_time = time.time() - start_time
         
@@ -110,6 +123,7 @@ def list_files():
             'status': 'success',
             'count': len(files),
             'files': files,
+            'source': source,
             'api_latency_ms': elapsed_time * 1000
         })
     
@@ -146,6 +160,14 @@ def get_file_info(filename):
                         'size': item.get('metadata', {}).get('size', 0)
                     }
                     break
+            if not info and DEMO_FALLBACK_ENABLED:
+                demo_record = get_demo_file_record(filename)
+                if demo_record:
+                    info = {
+                        'name': filename,
+                        'size': demo_record['size_bytes'],
+                        'source': 'demo'
+                    }
             
             if not info:
                 return jsonify({'status': 'error', 'message': 'File not found'}), 404
@@ -183,9 +205,18 @@ def download_file(filename):
         if provider == 'aws_s3':
             client.download_file(BUCKET, filename, temp_file)
         elif provider == 'supabase':
-            response = client.storage.from_(BUCKET).download(filename)
-            with open(temp_file, 'wb') as f:
-                f.write(response)
+            try:
+                response = client.storage.from_(BUCKET).download(filename)
+                with open(temp_file, 'wb') as f:
+                    f.write(response)
+            except Exception:
+                if not DEMO_FALLBACK_ENABLED:
+                    raise
+                demo_bytes = build_demo_file_bytes(filename)
+                if not demo_bytes:
+                    return jsonify({'status': 'error', 'message': 'File not found'}), 404
+                with open(temp_file, 'wb') as f:
+                    f.write(demo_bytes)
         
         download_time = time.time() - start_time
         file_size = os.path.getsize(temp_file)
@@ -243,6 +274,11 @@ def download_info(filename):
                 if item['name'] == filename:
                     file_size = item.get('metadata', {}).get('size', 0)
                     break
+
+            if file_size == 0 and DEMO_FALLBACK_ENABLED:
+                demo_record = get_demo_file_record(filename)
+                if demo_record:
+                    file_size = demo_record['size_bytes']
         
         elapsed_time = time.time() - start_time
         
