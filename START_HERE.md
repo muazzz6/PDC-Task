@@ -348,4 +348,28 @@ curl https://YOUR-VERCEL-URL/files
 
 If `/health` returns `status: healthy`, deployment is complete.
 
+---
+
+## Make The Real Bucket Show Files
+
+If the Vercel page shows demo files or the Supabase bucket is still empty, do this:
+
+### 1) Add storage policies in Supabase
+
+Open `supabase_bucket_setup.sql` and run it in the Supabase SQL Editor.
+
+### 2) Upload the sample files into the bucket
+
+```bash
+"C:/Users/muazt/AppData/Local/Programs/Python/Python312/python.exe" upload_sample_files_to_supabase.py
+```
+
+### 3) Refresh the deployed files page
+
+```bash
+curl https://YOUR-VERCEL-URL/files
+```
+
+If the bucket is configured correctly, the file list will show the real uploaded objects.
+
 Good luck! 🚀📊💪
