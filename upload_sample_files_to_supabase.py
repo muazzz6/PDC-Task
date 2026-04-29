@@ -31,7 +31,14 @@ def main() -> int:
         print("No sample files found. Run: python generate_sample_files.py")
         return 1
 
-    client = create_client(ACTIVE_CONFIG["url"], ACTIVE_CONFIG["key"])
+    url = os.getenv("SUPABASE_URL", ACTIVE_CONFIG["url"])
+    upload_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or ACTIVE_CONFIG["key"]
+    if os.getenv("SUPABASE_SERVICE_ROLE_KEY"):
+        print("Using SUPABASE_SERVICE_ROLE_KEY for uploads (bypasses RLS).")
+    else:
+        print("Using anon key for uploads. If RLS blocks uploads, set SUPABASE_SERVICE_ROLE_KEY.")
+
+    client = create_client(url, upload_key)
     bucket = ACTIVE_CONFIG["bucket_name"]
 
     print(f"Uploading {len(files)} files to Supabase bucket '{bucket}'...\n")

@@ -5,6 +5,13 @@ Choose ONE provider and fill in credentials
 
 import os
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
 # ============================================
 # OPTION 1: AWS S3
 # ============================================
@@ -41,7 +48,13 @@ FIREBASE_CONFIG = {
 SUPABASE_CONFIG = {
     'provider': 'supabase',
     'url': os.getenv('SUPABASE_URL', 'https://mmgtpmperlhmucfsbqdg.supabase.co'),
-    'key': os.getenv('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tZ3RwbXBlcmxobXVjZnNicWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTg5ODQsImV4cCI6MjA5MzAzNDk4NH0.vEx2Yw394oPh8--vcniq3JaSZhPJI1N_OWiRQfn2o2k'),
+    'key': os.getenv(
+        'SUPABASE_SERVICE_ROLE_KEY',
+        os.getenv(
+            'SUPABASE_KEY',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tZ3RwbXBlcmxobXVjZnNicWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTg5ODQsImV4cCI6MjA5MzAzNDk4NH0.vEx2Yw394oPh8--vcniq3JaSZhPJI1N_OWiRQfn2o2k'
+        )
+    ),
     'bucket_name': os.getenv('SUPABASE_BUCKET', 'PDC')
 }
 

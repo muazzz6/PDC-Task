@@ -364,6 +364,8 @@ Open `supabase_bucket_setup.sql` and run it in the Supabase SQL Editor.
 "C:/Users/muazt/AppData/Local/Programs/Python/Python312/python.exe" upload_sample_files_to_supabase.py
 ```
 
+If uploads still fail with RLS, set `SUPABASE_SERVICE_ROLE_KEY` in your local `.env` and run the script again. That key bypasses storage RLS and will populate the real bucket.
+
 ### 3) Refresh the deployed files page
 
 ```bash
