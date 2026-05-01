@@ -7,7 +7,10 @@ import os
 import sys
 import time
 import json
+import shutil
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 import pandas as pd
 
@@ -26,6 +29,18 @@ class ComprehensiveTestSuite:
             'configuration': {},
             'tests': {}
         }
+
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> float:
+        if denominator == 0:
+            return 0.0
+        return numerator / denominator
+
+    @staticmethod
+    def _safe_percent(numerator: float, denominator: float) -> float:
+        if denominator == 0:
+            return 0.0
+        return (numerator / denominator) * 100
     
     def setup(self, files: List[str], file_names: List[str], max_workers: int = 5, api_url: str = None):
         """Setup test configuration"""
@@ -261,9 +276,9 @@ class ComprehensiveTestSuite:
         
         # Add speedup column
         data['Parallel Speedup'] = [
-            f"{seq['upload']['time_s'] / par['upload']['time_s']:.2f}x",
-            f"{seq['download']['time_s'] / par['download']['time_s']:.2f}x",
-            f"{seq['total_time_s'] / par['total_time_s']:.2f}x"
+            f"{self._safe_ratio(seq['upload']['time_s'], par['upload']['time_s']):.2f}x",
+            f"{self._safe_ratio(seq['download']['time_s'], par['download']['time_s']):.2f}x",
+            f"{self._safe_ratio(seq['total_time_s'], par['total_time_s']):.2f}x"
         ]
         
         df = pd.DataFrame(data)
@@ -283,8 +298,8 @@ class ComprehensiveTestSuite:
         seq = self.results['tests']['sequential']
         par = self.results['tests']['parallel']
         
-        speedup = seq['total_time_s'] / par['total_time_s']
-        efficiency = (speedup / par['workers']) * 100
+        speedup = self._safe_ratio(seq['total_time_s'], par['total_time_s'])
+        efficiency = self._safe_percent(speedup, par['workers'])
         
         print(f"✓ Overall Speedup: {speedup:.2f}x (from {par['workers']} workers)")
         print(f"✓ Parallel Efficiency: {efficiency:.1f}%")
@@ -296,7 +311,8 @@ class ComprehensiveTestSuite:
         par_upload_speed = par['upload']['stats']['average_speed']
         print(f"  Sequential: {seq_upload_speed:.2f} MB/s")
         print(f"  Parallel:   {par_upload_speed:.2f} MB/s")
-        print(f"  Improvement: {(par_upload_speed / seq_upload_speed - 1) * 100:.1f}%")
+        upload_improvement = 0.0 if seq_upload_speed == 0 else (par_upload_speed / seq_upload_speed - 1) * 100
+        print(f"  Improvement: {upload_improvement:.1f}%")
         
         # Download analysis
         print(f"\n📥 DOWNLOAD Performance:")
@@ -304,7 +320,8 @@ class ComprehensiveTestSuite:
         par_download_speed = par['download']['stats']['average_speed']
         print(f"  Sequential: {seq_download_speed:.2f} MB/s")
         print(f"  Parallel:   {par_download_speed:.2f} MB/s")
-        print(f"  Improvement: {(par_download_speed / seq_download_speed - 1) * 100:.1f}%")
+        download_improvement = 0.0 if seq_download_speed == 0 else (par_download_speed / seq_download_speed - 1) * 100
+        print(f"  Improvement: {download_improvement:.1f}%")
         
         # API analysis
         if 'api' in self.results['tests'] and self.results['tests']['api'].get('status') == 'success':
@@ -317,7 +334,8 @@ class ComprehensiveTestSuite:
             print(f"  API Average Latency: {api_latency:.2f} ms")
             print(f"  API Download Speed: {api_speed:.2f} MB/s")
             print(f"  Direct Download Speed: {direct_speed:.2f} MB/s")
-            print(f"  API Overhead: {(direct_speed / api_speed - 1) * 100:.1f}%")
+            api_overhead = 0.0 if api_speed == 0 else (direct_speed / api_speed - 1) * 100
+            print(f"  API Overhead: {api_overhead:.1f}%")
     
     def _print_observations(self):
         """Print key observations"""
@@ -333,8 +351,8 @@ class ComprehensiveTestSuite:
             print("Cannot generate observations - incomplete data\n")
             return
         
-        speedup = seq['total_time_s'] / par['total_time_s']
-        efficiency = (speedup / par['workers']) * 100
+        speedup = self._safe_ratio(seq['total_time_s'], par['total_time_s'])
+        efficiency = self._safe_percent(speedup, par['workers'])
         
         print(f"1️⃣  Parallelism Impact:")
         if speedup >= par['workers'] * 0.9:
@@ -413,12 +431,12 @@ class ComprehensiveTestSuite:
                     par['download']['time_s'],
                     seq['total_time_s'],
                     par['total_time_s'],
-                    seq['total_time_s'] / par['total_time_s'],
+                    self._safe_ratio(seq['total_time_s'], par['total_time_s']),
                     seq['upload']['stats']['average_speed'],
                     par['upload']['stats']['average_speed'],
                     seq['download']['stats']['average_speed'],
                     par['download']['stats']['average_speed'],
-                    (seq['total_time_s'] / par['total_time_s'] / par['workers']) * 100
+                    self._safe_percent(self._safe_ratio(seq['total_time_s'], par['total_time_s']), par['workers'])
                 ]
             }
             
@@ -437,8 +455,18 @@ def main():
         print("Run: python generate_sample_files.py")
         return
     
-    files = [os.path.join(sample_dir, f) for f in os.listdir(sample_dir) if f.endswith('.txt')]
-    file_names = [os.path.basename(f) for f in files]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    benchmark_dir = os.path.join(tempfile.gettempdir(), f"pdc_benchmark_{timestamp}")
+    os.makedirs(benchmark_dir, exist_ok=True)
+
+    files = []
+    file_names = []
+    for original_path in sorted(Path(sample_dir).glob("*.txt")):
+        benchmark_name = f"bench_{timestamp}_{original_path.name}"
+        benchmark_path = os.path.join(benchmark_dir, benchmark_name)
+        shutil.copy2(original_path, benchmark_path)
+        files.append(benchmark_path)
+        file_names.append(benchmark_name)
     
     if not files:
         print(f"Error: No sample files found in {sample_dir}")
